@@ -1,0 +1,11 @@
+Package: Eta4ROC
+Title: Numerical Calculations For the Summary Statistic Eta for ROC Curves
+Version: 0.0.0.9000
+Authors@R: 
+    person("Ricardo", "de la Azuela Sánchez", , "riksp33@gmail.com", role = c("aut", "cre"))
+Description: Impementation of the summary statistic eta used for ROC curves using paremetric
+            and non-parametric approaches.
+License: use_mit_license()
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
