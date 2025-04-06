@@ -7,7 +7,8 @@
 parametric_eta(
   controls,
   cases,
-  box_cox = F,
+  t0 = 1,
+  box_cox = FALSE,
   mesh = seq(1e-05, 0.99999, length.out = 10000)
 )
 }

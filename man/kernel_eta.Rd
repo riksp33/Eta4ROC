@@ -4,12 +4,19 @@
 \alias{kernel_eta}
 \title{Kernel Eta Estimation}
 \usage{
-kernel_eta(controls, cases, method, mesh_size_kernel = 1000, box_cox = FALSE)
+kernel_eta(
+  controls,
+  cases,
+  method,
+  t0 = 1,
+  mesh_size_kernel = 1000,
+  box_cox = FALSE
+)
 }
 \arguments{
-\item{controls}{A numeric vector of data points representing the healthy sample.}
+\item{controls}{A numeric vector of data points representing the controls sample.}
 
-\item{cases}{A numeric vector of data points representing the sick sample.}
+\item{cases}{A numeric vector of data points representing the cases sample.}
 
 \item{method}{A character string specifying the bandwidth selection method. Options are 'optimal' or 'hscv'. The latter coming from the ks package.}
 
@@ -21,7 +28,7 @@ kernel_eta(controls, cases, method, mesh_size_kernel = 1000, box_cox = FALSE)
 A numeric vector of the estimated eta values at the specified points in the mesh.
 }
 \description{
-This function estimates the population eta using Kernel density estimation for healthy and sick samples.
+This function estimates the population eta using Kernel density estimation for controls and cases samples.
 It can apply a Box-Cox transformation if specified.
 }
 \examples{

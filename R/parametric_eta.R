@@ -23,7 +23,7 @@
 #' eta_boxcox = parametric_eta(controls, cases, box_cox = TRUE)
 #'
 #' @export
-parametric_eta = function(controls, cases, box_cox = F, mesh = seq(0.00001, 0.99999, length.out = 10000)){
+parametric_eta = function(controls, cases, t0 = 1, box_cox = FALSE, mesh = seq(0.00001, 0.99999, length.out = 10000)){
 
     if(box_cox){
         transformed_data = apply_box_cox(controls, cases)
@@ -43,5 +43,5 @@ parametric_eta = function(controls, cases, box_cox = F, mesh = seq(0.00001, 0.99
     ROC=1-pnorm(qnorm(1-p,mux,sigmax),mux+delta*sigmax/ro,sigmax/ro)
     ROCprima=(ro*exp(-0.5*(delta+ro*qnorm(p))^2))/exp(-0.5*(qnorm(p))^2)
 
-    return(eta_from_roc_curves(ROC, ROCprima, mesh))
+    return(eta_from_roc_curves(ROC, ROCprima, t0, mesh))
 }

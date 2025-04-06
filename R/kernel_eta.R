@@ -116,7 +116,7 @@ inverse_kernel_estimation = function(point, function_values, mesh) {
 #' eta_boxcox = kernel_eta(controls, cases, box_cox = TRUE)
 #' 
 #' @export
-kernel_eta = function(controls, cases, method, mesh_size_kernel = 1000, box_cox = FALSE) {
+kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, box_cox = FALSE) {
   
   # Apply Box-Cox transformation if specified
   if (box_cox) {
@@ -176,5 +176,5 @@ kernel_eta = function(controls, cases, method, mesh_size_kernel = 1000, box_cox 
   }
   
   # Return the eta values
-  return(eta_from_roc_curves(roc, roc_prime, p))
+  return(eta_from_roc_curves(roc, roc_prime, t0, p))
 }

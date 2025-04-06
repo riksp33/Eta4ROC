@@ -9,7 +9,7 @@
 #' @param mesh A numeric vector representing the mesh/grid used for integration.
 #' @return The standardized eta value.
 #' @export
-eta_from_roc_curves = function(roc, roc_dx, mesh) {
+eta_from_roc_curves = function(roc, roc_dx, t0, mesh) {
   etas = numeric()
   
   # Compute eta for the first element
@@ -27,7 +27,8 @@ eta_from_roc_curves = function(roc, roc_dx, mesh) {
   }
   
   # Sum all eta values and standardize the result
-  eta = sum(etas)
+  lim = sum(mesh <= t0)
+  eta = sum(etas[1:lim])
   return(standarization(eta))
 }
 
@@ -45,7 +46,7 @@ eta_from_roc_curves = function(roc, roc_dx, mesh) {
 
 #' @return The calculated eta value.
 #' @export
-analytical_eta = function(mesh, case = c("gaussian", "lognormal", "gamma"), param_1_y, param_2_y, param_1_x, param_2_x) {
+analytical_eta = function(mesh, param_1_y, param_2_y, param_1_x, param_2_x, case = c("gaussian", "lognormal", "gamma"), t0 = 1) {
 
 
     switch(case,
@@ -75,5 +76,5 @@ analytical_eta = function(mesh, case = c("gaussian", "lognormal", "gamma"), para
     roc = 1 - distribution(inv, param_1_x, param_2_x)
     roc_prima = num / denom
 
-    return(eta_from_roc_curves(roc, roc_prima, mesh))
+    return(eta_from_roc_curves(roc, roc_prima, t0, mesh))
 }

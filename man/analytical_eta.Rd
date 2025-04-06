@@ -6,11 +6,12 @@
 \usage{
 analytical_eta(
   mesh,
-  case = c("gaussian", "lognormal", "gamma"),
   param_1_y,
   param_2_y,
   param_1_x,
-  param_2_x
+  param_2_x,
+  case = c("gaussian", "lognormal", "gamma"),
+  t0 = 1
 )
 }
 \arguments{

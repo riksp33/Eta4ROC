@@ -4,7 +4,7 @@
 \alias{eta_from_roc_curves}
 \title{Calculate eta value from ROC curves}
 \usage{
-eta_from_roc_curves(roc, roc_dx, mesh)
+eta_from_roc_curves(roc, roc_dx, t0, mesh)
 }
 \arguments{
 \item{roc}{A numeric vector of ROC curve values.}
