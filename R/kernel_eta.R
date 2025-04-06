@@ -94,11 +94,11 @@ inverse_kernel_estimation = function(point, function_values, mesh) {
 
 #' Kernel Eta Estimation
 #'
-#' This function estimates the population eta using Kernel density estimation for healthy and sick samples.
+#' This function estimates the population eta using Kernel density estimation for controls and cases samples.
 #' It can apply a Box-Cox transformation if specified.
 #'
-#' @param controls A numeric vector of data points representing the healthy sample.
-#' @param cases A numeric vector of data points representing the sick sample.
+#' @param controls A numeric vector of data points representing the controls sample.
+#' @param cases A numeric vector of data points representing the cases sample.
 #' @param method A character string specifying the bandwidth selection method. Options are 'optimal' or 'hscv'. The latter coming from the ks package.
 #' @param mesh_size_kernel The number of mesh points used for the estimation. Default is 1000.
 #' @param box_cox A logical value indicating whether to apply a Box-Cox transformation. Default is FALSE.
@@ -130,19 +130,22 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
   
   # Bandwidth selection methods
   if (method == 'optimal') {
-    bandwidth = 1.06 * sd(combined_sample) * length(combined_sample)^(-1/5)
-    bandwidth_healthy = 1.06 * sd(controls) * length(controls)^(-1/5)
-    bandwidth_sick = 1.06 * sd(cases) * length(cases)^(-1/5)
+    bandwidth_controls = 1.06 * sd(controls) * length(controls)^(-1/5)
+    bandwidth_cases = 1.06 * sd(cases) * length(cases)^(-1/5)
   }
-  if (method == 'hscv') {
-    bandwidth = ks::hscv(combined_sample)
-    bandwidth_healthy = ks::hscv(controls)
-    bandwidth_sick = ks::hscv(cases)
+  else if (method == 'hscv') {
+    bandwidth_controls = ks::hscv(controls)
+    bandwidth_cases = ks::hscv(cases)
   }
+  else if (method == 'iqr') {
+    bandwidth_controls = 0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (lenght(controls)^(-1/5)) 
+    bandwidth_cases = 0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (lenght(cases)^(-1/5))
+  }
+
   
   # Sort the samples
-  sorted_healthy = sort(controls)
-  sorted_sick = sort(cases)
+  sorted_controls = sort(controls)
+  sorted_cases = sort(cases)
   
   # Create mesh for estimation
   mesh = seq(min(c(controls, cases)),
@@ -150,10 +153,10 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
              length.out = mesh_size_kernel)
   
   # Estimate distributions and densities using Kernel estimation
-  estimated_dist_healthy = kernel_distribution_estimation(sorted_healthy, mesh, bandwidth)
-  estimated_dist_sick = kernel_distribution_estimation(sorted_sick, mesh, bandwidth)
-  estimated_density_healthy = kernel_density_estimation(sorted_healthy, mesh, bandwidth)
-  estimated_density_sick = kernel_density_estimation(sorted_sick, mesh, bandwidth)
+  estimated_dist_controls = kernel_distribution_estimation(sorted_controls, mesh, bandwidth_controls)
+  estimated_dist_cases = kernel_distribution_estimation(sorted_cases, mesh, bandwidth_cases)
+  estimated_density_controls = kernel_density_estimation(sorted_controls, mesh, bandwidth_controls)
+  estimated_density_cases = kernel_density_estimation(sorted_cases, mesh, bandwidth_cases)
   
   # Create probability sequence
   p = seq(0.0001, 0.999, length.out = mesh_size_kernel)
@@ -167,11 +170,11 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
   for (i in 1:mesh_size_kernel) {
     point = p_opp[i]
     
-    inv = inverse_kernel_estimation(point, estimated_dist_healthy, mesh)
-    numerator = evaluate_kernel_estimation(inv, estimated_density_sick, mesh)
-    denominator = evaluate_kernel_estimation(inv, estimated_density_healthy, mesh)
+    inv = inverse_kernel_estimation(point, estimated_dist_controls, mesh)
+    numerator = evaluate_kernel_estimation(inv, estimated_density_cases, mesh)
+    denominator = evaluate_kernel_estimation(inv, estimated_density_controls, mesh)
     
-    roc[i] = 1 - evaluate_kernel_estimation(inv, estimated_dist_sick, mesh)
+    roc[i] = 1 - evaluate_kernel_estimation(inv, estimated_dist_cases, mesh)
     roc_prime[i] = numerator / denominator
   }
   
