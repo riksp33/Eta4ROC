@@ -99,7 +99,7 @@ inverse_kernel_estimation = function(point, function_values, mesh) {
 #'
 #' @param controls A numeric vector of data points representing the controls sample.
 #' @param cases A numeric vector of data points representing the cases sample.
-#' @param method A character string specifying the bandwidth selection method. Options are 'optimal' or 'hscv'. The latter coming from the ks package.
+#' @param method A character string specifying the bandwidth selection method. Options are 'optimal', 'iqr' or 'hscv'. The latter coming from the ks package.
 #' @param mesh_size_kernel The number of mesh points used for the estimation. Default is 1000.
 #' @param box_cox A logical value indicating whether to apply a Box-Cox transformation. Default is FALSE.
 #' @return A numeric vector of the estimated eta values at the specified points in the mesh.
