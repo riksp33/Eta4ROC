@@ -6,8 +6,23 @@
 #'
 #' @param roc A numeric vector of ROC curve values.
 #' @param roc_dx A numeric vector of ROC curve derivatives (roc_prima).
+#' @param t0 A numeric value indicating the cutoff point for integration. Only mesh points up to t0 are considered.
 #' @param mesh A numeric vector representing the mesh/grid used for integration.
-#' @return The standardized eta value.
+#' @return The standardized eta value calculated using the standarization() function.
+#' @details The function computes eta by considering two cases: when roc_dx <= 1 and when roc_dx > 1.
+#'   For each mesh interval, it calculates a partial eta value and then sums all values up to the t0 threshold.
+#'   The final result is standardized using the standarization() function.
+#' @examples
+#' \dontrun{
+#' # Create sample ROC curve values
+#' roc <- c(0, 0.2, 0.5, 0.8, 1)
+#' roc_dx <- c(0.5, 1.2, 1.5, 1.8, 2.0)
+#' mesh <- seq(0, 1, 0.25)
+#' 
+#' # Calculate eta value with cutoff at 0.75
+#' result <- eta_from_roc_curves(roc, roc_dx, 0.75, mesh)
+#' print(result)
+#' }
 #' @export
 eta_from_roc_curves = function(roc, roc_dx, t0, mesh) {
   etas = numeric()
@@ -33,18 +48,52 @@ eta_from_roc_curves = function(roc, roc_dx, t0, mesh) {
 }
 
 
-#' General function to calculate eta analitically for gaussian and gamma distributions
+#' Calculate eta analytically for various probability distributions
 #'
-#' This function allows calculating eta using custom distributions and their respective transformations.
+#' This function computes the eta value using closed-form expressions for different probability distributions
+#' (Gaussian, Log-normal, or Gamma) by transforming their parameters into ROC curve values and derivatives.
 #'
-#' @param mux A numeric value for the mean of the distribution (e.g., mean for Normal, Log-Normal).
-#' @param mesh_size The number of intervals to use for the mesh/grid (default is m).
-#' @param param_1_y Either mu or shape (gaussian / gamma) of the non-diseased population.
-#' @param param_2_y Either stdev or rate (gaussian / gamma) of the non-diseased population.
-#' @param param_1_x Either mu or shape (gaussian / gamma) of the diseased population.
-#' @param param_2_x Either stdev or rate (gaussian / gamma) of the diseased population.
-
-#' @return The calculated eta value.
+#' @param param_1_y First parameter of the non-diseased population distribution:
+#'   For Gaussian/Log-normal: mean (mu)
+#'   For Gamma: shape parameter
+#' @param param_2_y Second parameter of the non-diseased population distribution:
+#'   For Gaussian/Log-normal: standard deviation (sigma)
+#'   For Gamma: rate parameter
+#' @param param_1_x First parameter of the diseased population distribution:
+#'   For Gaussian/Log-normal: mean (mu)
+#'   For Gamma: shape parameter
+#' @param param_2_x Second parameter of the diseased population distribution:
+#'   For Gaussian/Log-normal: standard deviation (sigma)
+#'   For Gamma: rate parameter
+#' @param mesh A numeric vector representing the grid points for integration. 
+#'   Default is a sequence from 0.00001 to 0.99999 with 10,000 points.
+#' @param case A character string specifying the distribution family: "gaussian", "lognormal", or "gamma".
+#' @param t0 A numeric value indicating the cutoff point for integration. Default is 1.
+#' @return The calculated eta value after standardization.
+#' @details The function works by:
+#'   1. Setting up appropriate quantile, density, and cumulative distribution functions for the selected distribution
+#'   2. Computing inverse values, ROC curve points, and derivatives based on the distribution parameters
+#'   3. Calling eta_from_roc_curves() to calculate the final eta value
+#' @examples
+#' \dontrun{
+#' # Gaussian case with different means, same standard deviation
+#' normal_eta <- analytical_eta(0, 1, 2, 1, case = "gaussian")
+#' print(normal_eta)
+#' 
+#' # Log-normal case
+#' lognormal_eta <- analytical_eta(0, 0.5, 0.5, 0.75, case = "lognormal")
+#' print(lognormal_eta)
+#' 
+#' # Gamma case with different shape and rate parameters
+#' gamma_eta <- analytical_eta(2, 1, 3, 2, case = "gamma", t0 = 0.9)
+#' print(gamma_eta)
+#' 
+#' # Using a custom mesh with fewer points
+#' custom_mesh <- seq(0.001, 0.999, length.out = 1000)
+#' eta_custom <- analytical_eta(0, 1, 1.5, 1.2, mesh = custom_mesh, case = "gaussian")
+#' print(eta_custom)
+#' }
+#' @seealso \code{\link{eta_from_roc_curves}} for the underlying computation method
 #' @export
 analytical_eta = function(param_1_y, param_2_y, param_1_x, param_2_x, mesh = seq(0.00001, 0.99999, length.out = 10000), case = "gaussian", t0 = 1) {
 
