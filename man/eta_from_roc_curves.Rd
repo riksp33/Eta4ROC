@@ -11,12 +11,31 @@ eta_from_roc_curves(roc, roc_dx, t0, mesh)
 
 \item{roc_dx}{A numeric vector of ROC curve derivatives (roc_prima).}
 
+\item{t0}{A numeric value indicating the cutoff point for integration. Only mesh points up to t0 are considered.}
+
 \item{mesh}{A numeric vector representing the mesh/grid used for integration.}
 }
 \value{
-The standardized eta value.
+The standardized eta value calculated using the standarization() function.
 }
 \description{
 This function calculates the eta value using the given ROC curves and mesh. The eta is computed based on the formula
 that involves the differences between the ROC curve values and mesh intervals.
+}
+\details{
+The function computes eta by considering two cases: when roc_dx <= 1 and when roc_dx > 1.
+For each mesh interval, it calculates a partial eta value and then sums all values up to the t0 threshold.
+The final result is standardized using the standarization() function.
+}
+\examples{
+\dontrun{
+# Create sample ROC curve values
+roc <- c(0, 0.2, 0.5, 0.8, 1)
+roc_dx <- c(0.5, 1.2, 1.5, 1.8, 2.0)
+mesh <- seq(0, 1, 0.25)
+
+# Calculate eta value with cutoff at 0.75
+result <- eta_from_roc_curves(roc, roc_dx, 0.75, mesh)
+print(result)
+}
 }

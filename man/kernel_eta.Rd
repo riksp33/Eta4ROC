@@ -18,26 +18,51 @@ kernel_eta(
 
 \item{cases}{A numeric vector of data points representing the cases sample.}
 
-\item{method}{A character string specifying the bandwidth selection method. Options are 'optimal' or 'hscv'. The latter coming from the ks package.}
+\item{method}{A character string specifying the bandwidth selection method. Options are 'optimal' (Silverman's rule),
+'iqr' (robust rule based on interquartile range), or 'hscv' (least squares cross-validation from ks package).}
+
+\item{t0}{A numeric value indicating the cutoff point for integration. Only mesh points up to t0 are considered. Default is 1.}
 
 \item{mesh_size_kernel}{The number of mesh points used for the estimation. Default is 1000.}
 
 \item{box_cox}{A logical value indicating whether to apply a Box-Cox transformation. Default is FALSE.}
 }
 \value{
-A numeric vector of the estimated eta values at the specified points in the mesh.
+A numeric value representing the estimated eta measure.
 }
 \description{
 This function estimates the population eta using Kernel density estimation for controls and cases samples.
-It can apply a Box-Cox transformation if specified.
+It calculates the ROC curve and its derivative based on non-parametric kernel density estimates, then
+uses these to compute the eta value.
 }
 \examples{
-# Example usage without Box-Cox transformation
-controls = rnorm(1000, mean = 0, sd = 1)
-cases = rnorm(1000, mean = 1, sd = 1)
-eta = kernel_eta(controls, cases)
+\dontrun{
+# Generate sample data with moderate separation
+controls <- rnorm(1000, mean = 0, sd = 1)
+cases <- rnorm(1000, mean = 1, sd = 1) 
 
-# Example usage with Box-Cox transformation
-eta_boxcox = kernel_eta(controls, cases, box_cox = TRUE)
+# Estimate eta using optimal bandwidth selection
+eta_optimal <- kernel_eta(controls, cases, method = "optimal")
+print(eta_optimal)
 
+# Estimate eta using IQR-based bandwidth selection
+eta_iqr <- kernel_eta(controls, cases, method = "iqr")
+print(eta_iqr)
+
+# Estimate eta with Box-Cox transformation (useful for skewed data)
+gamma_controls <- rgamma(1000, shape = 2, rate = 1)
+gamma_cases <- rgamma(1000, shape = 3, rate = 1)
+eta_boxcox <- kernel_eta(gamma_controls, gamma_cases, method = "optimal", box_cox = TRUE)
+print(eta_boxcox)
+
+# Using a different cutoff and finer mesh
+eta_fine <- kernel_eta(controls, cases, method = "optimal", t0 = 0.9, mesh_size_kernel = 2000)
+print(eta_fine)
+}
+
+}
+\seealso{
+\code{\link{eta_from_roc_curves}} for the underlying eta calculation,
+\code{\link{kernel_density_estimation}} and \code{\link{kernel_distribution_estimation}} for the
+kernel estimation functions, \code{\link{apply_box_cox}} for details on the Box-Cox transformation
 }

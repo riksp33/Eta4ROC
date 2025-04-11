@@ -7,15 +7,30 @@
 inverse_kernel_estimation(point, function_values, mesh)
 }
 \arguments{
-\item{point}{A numeric value representing the quantile to find.}
+\item{point}{A numeric value representing the probability (between 0 and 1) for which to find the quantile.}
 
-\item{function_values}{A numeric vector of the estimated function values (from Kernel estimation).}
+\item{function_values}{A numeric vector of the estimated CDF values (from Kernel estimation).}
 
 \item{mesh}{A numeric vector of the mesh/grid used in the estimation.}
 }
 \value{
-The quantile value corresponding to the specified point in the mesh.
+The quantile value corresponding to the specified probability point.
 }
 \description{
-This function finds the quantile of the Kernel estimation at a specific point.
+This function finds the quantile (inverse CDF) of the Kernel estimation at a specific probability point
+by interpolating between the closest function values.
+}
+\examples{
+\dontrun{
+# Generate sample data and estimate CDF
+data <- rnorm(500, mean = 0, sd = 1)
+mesh <- seq(-3, 3, length.out = 100)
+bandwidth <- 1.06 * sd(data) * length(data)^(-1/5)
+cdf_values <- kernel_distribution_estimation(data, mesh, bandwidth)
+
+# Find the value at the 75th percentile
+prob <- 0.75
+quantile_value <- inverse_kernel_estimation(prob, cdf_values, mesh)
+print(quantile_value)
+}
 }

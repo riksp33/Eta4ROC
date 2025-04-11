@@ -17,5 +17,23 @@ kernel_density_estimation(data, points, bandwidth)
 A numeric vector of the estimated density values at the specified points.
 }
 \description{
-This function estimates the probability density function using Kernel density estimation.
+This function estimates the probability density function using Kernel density estimation with Gaussian kernels.
+}
+\examples{
+\dontrun{
+# Generate sample data
+data <- rnorm(500, mean = 0, sd = 1)
+
+# Define points at which to estimate density
+points <- seq(-3, 3, length.out = 100)
+
+# Calculate optimal bandwidth using Silverman's rule of thumb
+bandwidth <- 1.06 * sd(data) * length(data)^(-1/5)
+
+# Estimate density
+densities <- kernel_density_estimation(data, points, bandwidth)
+
+# Plot the results
+plot(points, densities, type = "l", main = "Kernel Density Estimation")
+}
 }

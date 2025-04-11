@@ -2,34 +2,77 @@
 % Please edit documentation in R/analytical_eta.R
 \name{analytical_eta}
 \alias{analytical_eta}
-\title{General function to calculate eta analitically for gaussian and gamma distributions}
+\title{Calculate eta analytically for various probability distributions}
 \usage{
 analytical_eta(
-  mesh,
   param_1_y,
   param_2_y,
   param_1_x,
   param_2_x,
-  case = c("gaussian", "lognormal", "gamma"),
+  mesh = seq(1e-05, 0.99999, length.out = 10000),
+  case = "gaussian",
   t0 = 1
 )
 }
 \arguments{
-\item{param_1_y}{Either mu or shape (gaussian / gamma) of the non-diseased population.}
+\item{param_1_y}{First parameter of the non-diseased population distribution:
+For Gaussian/Log-normal: mean (mu)
+For Gamma: shape parameter}
 
-\item{param_2_y}{Either stdev or rate (gaussian / gamma) of the non-diseased population.}
+\item{param_2_y}{Second parameter of the non-diseased population distribution:
+For Gaussian/Log-normal: standard deviation (sigma)
+For Gamma: rate parameter}
 
-\item{param_1_x}{Either mu or shape (gaussian / gamma) of the diseased population.}
+\item{param_1_x}{First parameter of the diseased population distribution:
+For Gaussian/Log-normal: mean (mu)
+For Gamma: shape parameter}
 
-\item{param_2_x}{Either stdev or rate (gaussian / gamma) of the diseased population.}
+\item{param_2_x}{Second parameter of the diseased population distribution:
+For Gaussian/Log-normal: standard deviation (sigma)
+For Gamma: rate parameter}
 
-\item{mux}{A numeric value for the mean of the distribution (e.g., mean for Normal, Log-Normal).}
+\item{mesh}{A numeric vector representing the grid points for integration.
+Default is a sequence from 0.00001 to 0.99999 with 10,000 points.}
 
-\item{mesh_size}{The number of intervals to use for the mesh/grid (default is m).}
+\item{case}{A character string specifying the distribution family: "gaussian", "lognormal", or "gamma".}
+
+\item{t0}{A numeric value indicating the cutoff point for integration. Default is 1.}
 }
 \value{
-The calculated eta value.
+The calculated eta value after standardization.
 }
 \description{
-This function allows calculating eta using custom distributions and their respective transformations.
+This function computes the eta value using closed-form expressions for different probability distributions
+(Gaussian, Log-normal, or Gamma) by transforming their parameters into ROC curve values and derivatives.
+}
+\details{
+The function works by:
+\enumerate{
+\item Setting up appropriate quantile, density, and cumulative distribution functions for the selected distribution
+\item Computing inverse values, ROC curve points, and derivatives based on the distribution parameters
+\item Calling eta_from_roc_curves() to calculate the final eta value
+}
+}
+\examples{
+\dontrun{
+# Gaussian case with different means, same standard deviation
+normal_eta <- analytical_eta(0, 1, 2, 1, case = "gaussian")
+print(normal_eta)
+
+# Log-normal case
+lognormal_eta <- analytical_eta(0, 0.5, 0.5, 0.75, case = "lognormal")
+print(lognormal_eta)
+
+# Gamma case with different shape and rate parameters
+gamma_eta <- analytical_eta(2, 1, 3, 2, case = "gamma", t0 = 0.9)
+print(gamma_eta)
+
+# Using a custom mesh with fewer points
+custom_mesh <- seq(0.001, 0.999, length.out = 1000)
+eta_custom <- analytical_eta(0, 1, 1.5, 1.2, mesh = custom_mesh, case = "gaussian")
+print(eta_custom)
+}
+}
+\seealso{
+\code{\link{eta_from_roc_curves}} for the underlying computation method
 }

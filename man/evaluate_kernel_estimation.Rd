@@ -17,5 +17,20 @@ evaluate_kernel_estimation(point, function_values, mesh)
 The evaluated value at the specified point.
 }
 \description{
-This function evaluates the Kernel estimation at a specific point based on the mesh.
+This function evaluates the Kernel estimation at a specific point based on the mesh by interpolating
+between the closest mesh points.
+}
+\examples{
+\dontrun{
+# Generate sample data and estimate density
+data <- rnorm(500, mean = 0, sd = 1)
+mesh <- seq(-3, 3, length.out = 100)
+bandwidth <- 1.06 * sd(data) * length(data)^(-1/5)
+density_values <- kernel_density_estimation(data, mesh, bandwidth)
+
+# Evaluate density at a specific point not in the mesh
+point <- 1.5
+evaluated_density <- evaluate_kernel_estimation(point, density_values, mesh)
+print(evaluated_density)
+}
 }
