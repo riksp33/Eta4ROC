@@ -138,8 +138,8 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
     bandwidth_cases = ks::hscv(cases)
   }
   else if (method == 'iqr') {
-    bandwidth_controls = 0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (lenght(controls)^(-1/5)) 
-    bandwidth_cases = 0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (lenght(cases)^(-1/5))
+    bandwidth_controls = 0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (length(controls)^(-1/5)) 
+    bandwidth_cases = 0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (length(cases)^(-1/5))
   }
 
   

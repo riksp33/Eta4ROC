@@ -46,27 +46,25 @@ eta_from_roc_curves = function(roc, roc_dx, t0, mesh) {
 
 #' @return The calculated eta value.
 #' @export
-analytical_eta = function(mesh, param_1_y, param_2_y, param_1_x, param_2_x, case = c("gaussian", "lognormal", "gamma"), t0 = 1) {
+analytical_eta = function(param_1_y, param_2_y, param_1_x, param_2_x, mesh = seq(0.00001, 0.99999, length.out = 10000), case = "gaussian", t0 = 1) {
 
 
-    switch(case,
-            normal={
-                inverse_dist = function(p, mu, sigma) {qnorm(p, mu, sigma)}
-                density_func = function(p, mu, sigma) {dnorm(p, mu, sigma)}
-                distribution = function(p, mu, sigma) {pnorm(p, mu, sigma)}
-            },
-            
-            lognormal={
-                inverse_dist = function(p, mu, sigma) {qlnorm(p, mu, sigma)}
-                density_func = function(p, mu, sigma) {dlnorm(p, mu, sigma)}
-                distribution = function(p, mu, sigma) {plnorm(p, mu, sigma)}  
-            },
-            
-            gamma={
-                inverse_dist = function(p, shape, rate) {qgamma(p, shape = shape, rate = rate)}
-                density_func = function(p, shape, rate) {dgamma(p, shape = shape, rate = rate)}
-                distribution = function(p, shape, rate) {pgamma(p, shape = shape, rate = rate)}
-            })
+  if(case == "gaussian") {
+    inverse_dist = function(p, mu, sigma) {qnorm(p, mu, sigma)}
+    density_func = function(p, mu, sigma) {dnorm(p, mu, sigma)}
+    distribution = function(p, mu, sigma) {pnorm(p, mu, sigma)}
+  } else if(case == "lognormal") {
+    inverse_dist = function(p, mu, sigma) {qlnorm(p, mu, sigma)}
+    density_func = function(p, mu, sigma) {dlnorm(p, mu, sigma)}
+    distribution = function(p, mu, sigma) {plnorm(p, mu, sigma)}
+  } else if(case == "gamma") {
+    inverse_dist = function(p, shape, rate) {qgamma(p, shape = shape, rate = rate)}
+    density_func = function(p, shape, rate) {dgamma(p, shape = shape, rate = rate)}
+    distribution = function(p, shape, rate) {pgamma(p, shape = shape, rate = rate)}
+  } else {
+    stop("Non valid input, the param case must be gaussian, lognormal or gamma")
+  }
+  
 
     inv = inverse_dist(1-mesh, param_1_y, param_2_y)
 

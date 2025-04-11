@@ -40,8 +40,8 @@ parametric_eta = function(controls, cases, t0 = 1, box_cox = FALSE, mesh = seq(0
     ro=sigmax/sigmay
     delta=(muy-mux)/sigmay
 
-    ROC=1-pnorm(qnorm(1-p,mux,sigmax),mux+delta*sigmax/ro,sigmax/ro)
-    ROCprima=(ro*exp(-0.5*(delta+ro*qnorm(p))^2))/exp(-0.5*(qnorm(p))^2)
+    ROC=1-pnorm(qnorm(1-mesh,mux,sigmax),mux+delta*sigmax/ro,sigmax/ro)
+    ROCprima=(ro*exp(-0.5*(delta+ro*qnorm(mesh))^2))/exp(-0.5*(qnorm(mesh))^2)
 
     return(eta_from_roc_curves(ROC, ROCprima, t0, mesh))
 }
