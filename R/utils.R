@@ -206,6 +206,15 @@ get_mux_bisection = function(y_population, stdev_x, auc_target, tol = 0.01, max_
   return(FALSE)
 }
 
+calculate_auc_normal = function(controls, cases){
+  nAUC=pnorm((mean(cases)-mean(controls))/(sd(controls)^2+sd(cases)^2)^0.5)
+  return(nAUC)
+}
 
+calculate_youden_normal = function(controls, cases){
+  cstar=((mean(cases)*sd(controls)^2-mean(controls)*sd(cases)^2)-sd(controls)*sd(cases)*sqrt((mean(controls)-mean(cases))^2+(sd(controls)^2-sd(cases)^2)*log(sd(controls)^2/sd(cases)^2)))/(sd(controls)^2-sd(cases)^2)
+  youden=pnorm((cstar-mean(controls))/sd(controls))-pnorm((cstar-mean(cases))/sd(cases))
+  return(youden)
+}
 
 
