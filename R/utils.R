@@ -211,10 +211,117 @@ calculate_auc_normal = function(controls, cases){
   return(nAUC)
 }
 
+calculate_auc_kernel = function(controls, cases, bandwidth_method = "optimal", 
+                                kernel_function = "gaussian", box_cox = FALSE){
+  
+  # Box-Cox transformation if requested
+  if (box_cox){
+    transformed_data = apply_box_cox(controls, cases)
+    controls = transformed_data$transformed_x
+    cases = transformed_data$transformed_y
+  }
+  
+  n_controls = length(controls)
+  n_cases = length(cases)
+  
+  # Bandwidth selection methods
+  if (bandwidth_method == 'optimal') {
+    bandwidth_controls = 1.06 * sd(controls) * n_controls^(-1/5)
+    bandwidth_cases = 1.06 * sd(cases) * n_cases^(-1/5)
+  }
+  else if (bandwidth_method == 'hscv') {
+    bandwidth_controls = ks::hscv(controls)
+    bandwidth_cases = ks::hscv(cases)
+  }
+  else if (bandwidth_method == 'iqr') {
+    bandwidth_controls = 0.9 * min(sd(controls), IQR(controls) / 1.34) * (n_controls^(-1/5)) 
+    bandwidth_cases = 0.9 * min(sd(cases), IQR(cases) / 1.34) * (n_cases^(-1/5))
+  }
+  else {
+    stop("Invalid bandwidth method. Choose 'optimal', 'hscv', or 'iqr'")
+  }
+  
+  # Combined bandwidth for kernel convolution
+  h_combined = sqrt(bandwidth_controls^2 + bandwidth_cases^2)
+  
+  # Define kernel CDF functions
+  if (kernel_function == "gaussian") {
+    kernel_cdf = function(u) { pnorm(u) }
+  }
+  else if (kernel_function == "epanechnikov") {
+    kernel_cdf = function(u) {
+      result = (-u^3 + 15*u + 2*5^(3/2)) / (4*5^(3/2))
+      result = result * (abs(u) <= sqrt(5)) + 1 * (u > sqrt(5))
+      return(result)
+    }
+  }
+  else {
+    stop("Invalid kernel function. Choose 'gaussian' or 'epanechnikov'")
+  }
+  
+  # Calculate AUC using the kernel formula
+  auc = 0
+  for (i in 1:n_controls) {
+    for (j in 1:n_cases) {
+      auc = auc + kernel_cdf((cases[j] - controls[i]) / h_combined)
+    }
+  }
+  
+  auc = auc / (n_controls * n_cases)
+
+  return(auc)
+}
+
+
 calculate_youden_normal = function(controls, cases){
   cstar=((mean(cases)*sd(controls)^2-mean(controls)*sd(cases)^2)-sd(controls)*sd(cases)*sqrt((mean(controls)-mean(cases))^2+(sd(controls)^2-sd(cases)^2)*log(sd(controls)^2/sd(cases)^2)))/(sd(controls)^2-sd(cases)^2)
   youden=pnorm((cstar-mean(controls))/sd(controls))-pnorm((cstar-mean(cases))/sd(cases))
   return(youden)
+}
+
+
+calculate_youden_kernel = function(controls, cases, bandwidth_method, mesh_size_kernel = 1000, box_cox = FALSE){
+    # Apply Box-Cox transformation if specified
+  if (box_cox) {
+    transformed_data = apply_box_cox(controls, cases)
+    controls = transformed_data$transformed_x
+    cases = transformed_data$transformed_y
+  }
+  
+  # Combine the samples
+  combined_sample = c(controls, cases)
+  
+  # Bandwidth selection methods
+  if (bandwidth_method == 'optimal') {
+    bandwidth_controls = 1.06 * sd(controls) * length(controls)^(-1/5)
+    bandwidth_cases = 1.06 * sd(cases) * length(cases)^(-1/5)
+  }
+  else if (bandwidth_method == 'hscv') {
+    bandwidth_controls = ks::hscv(controls)
+    bandwidth_cases = ks::hscv(cases)
+  }
+  else if (bandwidth_method == 'iqr') {
+    bandwidth_controls = 0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (length(controls)^(-1/5)) 
+    bandwidth_cases = 0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (length(cases)^(-1/5))
+  }
+
+  
+  # Sort the samples
+  sorted_controls = sort(controls)
+  sorted_cases = sort(cases)
+  
+  # Create mesh for estimation
+  mesh = seq(min(c(controls, cases)),
+             max(c(controls, cases)),
+             length.out = mesh_size_kernel)
+  
+  # Estimate distributions and densities using Kernel estimation
+  estimated_dist_controls = kernel_distribution_estimation(sorted_controls, mesh, bandwidth_controls)
+  estimated_dist_cases = kernel_distribution_estimation(sorted_cases, mesh, bandwidth_cases)
+
+
+  return(max(estimated_dist_cases - estimated_dist_controls))
+  
 }
 
 
