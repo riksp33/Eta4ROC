@@ -28,8 +28,13 @@ kernel_density_estimation = function(data, points, bandwidth) {
   n_data = length(data)
   n_points = length(points)
   
-  kernel_matrix = dnorm((points %*% t(rep(1, n_data)) - t(data %*% t(rep(1, n_points)))) / bandwidth)
-  estimated_density = as.vector((kernel_matrix %*% rep(1, n_data)) / (n_data * bandwidth))
+  # A bandwidth of zero collapses all probability mass onto the
+  # data points, which is the empirical (Dirac) density. We approximate it
+  # with a very small positive floor so dnorm() stays finite.
+  safe_bandwidth = max(bandwidth, .Machine$double.eps * 100)
+  
+  kernel_matrix = dnorm((points %*% t(rep(1, n_data)) - t(data %*% t(rep(1, n_points)))) / safe_bandwidth)
+  estimated_density = as.vector((kernel_matrix %*% rep(1, n_data)) / (n_data * safe_bandwidth))
   
   return(estimated_density)
 }
@@ -64,7 +69,12 @@ kernel_distribution_estimation = function(data, points, bandwidth) {
   n_data = length(data)
   n_points = length(points)
   
-  kernel_matrix = pnorm((points %*% t(rep(1, n_data)) - t(data %*% t(rep(1, n_points)))) / bandwidth)
+  # Same bandwidth floor as in kernel_density_estimation.
+  # pnorm(x / 0) is NaN; with a near-zero bandwidth pnorm converges to the
+  # empirical step-function CDF, which is the correct degenerate limit.
+  safe_bandwidth = max(bandwidth, .Machine$double.eps * 100)
+  
+  kernel_matrix = pnorm((points %*% t(rep(1, n_data)) - t(data %*% t(rep(1, n_points)))) / safe_bandwidth)
   estimated_distribution = as.vector((kernel_matrix %*% rep(1, n_data)) / n_data)
   
   return(estimated_distribution)
@@ -94,18 +104,14 @@ kernel_distribution_estimation = function(data, points, bandwidth) {
 #' }
 #' @export
 evaluate_kernel_estimation = function(point, function_values, mesh) {
-  sorted_function_values = sort(function_values)
   n_points = length(mesh)
-  position = sum((mesh < point))
-  r_index = 1
+  position = sum(mesh < point)
   
-  if (position == n_points) {
-    r_index = n_points - 1
-  }
-  
-  if (position < n_points && position > 1) {
-    r_index = position
-  }
+  # Clamp r_index so that the interpolation pair [r_index, r_index+1] always
+  # lies within bounds. This handles both boundary cases (position == 0 and
+  # position == n_points) with the nearest valid pair, which is the
+  # reasonable flat-extrapolation behaviour expected in tails.
+  r_index = min(max(position, 1L), n_points - 1L)
   
   value = mean(c(function_values[r_index], function_values[r_index + 1]))
   
@@ -136,18 +142,12 @@ evaluate_kernel_estimation = function(point, function_values, mesh) {
 #' }
 #' @export
 inverse_kernel_estimation = function(point, function_values, mesh) {
-  sorted_function_values = sort(function_values)
   n_points = length(mesh)
   position = sum(function_values < point)
-  r_index = 1
   
-  if (position == n_points) {
-    r_index = n_points - 1
-  }
-  
-  if (position < n_points && position > 1) {
-    r_index = position
-  }
+  # Clamp r_index so that the interpolation pair [r_index, r_index+1] always
+  # lies within bounds. Mirrors the fix in evaluate_kernel_estimation.
+  r_index = min(max(position, 1L), n_points - 1L)
   
   value = mean(c(mesh[r_index], mesh[r_index + 1]))
   
@@ -204,8 +204,18 @@ inverse_kernel_estimation = function(point, function_values, mesh) {
 #' @export
 kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, box_cox = FALSE) {
   
-  # Apply Box-Cox transformation if specified
+  # Apply Box-Cox transformation if specified.
+  # apply_box_cox requires strictly positive data. If any value is
+  # <= 0 after a shift the transform is undefined. We shift both samples so
+  # their joint minimum is just above zero, preserving relative differences and
+  # keeping the transformation well-defined for every Monte Carlo draw.
   if (box_cox) {
+    joint_min = min(c(controls, cases))
+    if (joint_min <= 0) {
+      shift = abs(joint_min) + 1e-6
+      controls = controls + shift
+      cases    = cases    + shift
+    }
     transformed_data = apply_box_cox(controls, cases)
     controls = transformed_data$transformed_x
     cases = transformed_data$transformed_y
@@ -214,21 +224,38 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
   # Combine the samples
   combined_sample = c(controls, cases)
   
-  # Bandwidth selection methods
+  # sd() == 0 when all values in the sample are identical (degenerate draw in
+  # Monte Carlo). IQR() == 0 for heavily discretised or nearly constant data.
+  # In both cases the raw formula gives bandwidth = 0, which then propagates
+  # to NaN in the kernel functions (NaN #3).
+  # We fall back to a data-range-based minimum so the kernel is still a valid
+  # smooth approximation rather than a Dirac spike.
+  .safe_bandwidth = function(bw, sample) {
+    if (is.finite(bw) && bw > 0) return(bw)
+    data_range = diff(range(sample))
+    # If range is also zero the sample is fully constant; any positive value
+    # works — we use a small absolute floor.
+    fallback = if (data_range > 0) 0.06 * data_range else 1e-6
+    return(fallback)
+  }
+  
   if (method == 'optimal') {
-    bandwidth_controls = 1.06 * sd(controls) * length(controls)^(-1/5)
-    bandwidth_cases = 1.06 * sd(cases) * length(cases)^(-1/5)
-  }
-  else if (method == 'hscv') {
-    bandwidth_controls = ks::hscv(controls)
-    bandwidth_cases = ks::hscv(cases)
-  }
-  else if (method == 'iqr') {
-    bandwidth_controls = 0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (length(controls)^(-1/5)) 
-    bandwidth_cases = 0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (length(cases)^(-1/5))
+    bandwidth_controls = .safe_bandwidth(1.06 * sd(controls) * length(controls)^(-1/5), controls)
+    bandwidth_cases    = .safe_bandwidth(1.06 * sd(cases)    * length(cases)^(-1/5),    cases)
+  } else if (method == 'hscv') {
+    bandwidth_controls = .safe_bandwidth(ks::hscv(controls), controls)
+    bandwidth_cases    = .safe_bandwidth(ks::hscv(cases),    cases)
+  } else if (method == 'iqr') {
+    bandwidth_controls = .safe_bandwidth(
+      0.9 * min(sd(controls), (IQR(controls) / 1.34)) * (length(controls)^(-1/5)),
+      controls
+    )
+    bandwidth_cases = .safe_bandwidth(
+      0.9 * min(sd(cases), (IQR(cases) / 1.34)) * (length(cases)^(-1/5)),
+      cases
+    )
   }
 
-  
   # Sort the samples
   sorted_controls = sort(controls)
   sorted_cases = sort(cases)
@@ -239,10 +266,10 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
              length.out = mesh_size_kernel)
   
   # Estimate distributions and densities using Kernel estimation
-  estimated_dist_controls = kernel_distribution_estimation(sorted_controls, mesh, bandwidth_controls)
-  estimated_dist_cases = kernel_distribution_estimation(sorted_cases, mesh, bandwidth_cases)
+  estimated_dist_controls    = kernel_distribution_estimation(sorted_controls, mesh, bandwidth_controls)
+  estimated_dist_cases       = kernel_distribution_estimation(sorted_cases,    mesh, bandwidth_cases)
   estimated_density_controls = kernel_density_estimation(sorted_controls, mesh, bandwidth_controls)
-  estimated_density_cases = kernel_density_estimation(sorted_cases, mesh, bandwidth_cases)
+  estimated_density_cases    = kernel_density_estimation(sorted_cases,    mesh, bandwidth_cases)
   
   # Create probability sequence
   p = seq(0.0001, 0.999, length.out = mesh_size_kernel)
@@ -256,12 +283,23 @@ kernel_eta = function(controls, cases, method, t0 = 1, mesh_size_kernel = 1000, 
   for (i in 1:mesh_size_kernel) {
     point = p_opp[i]
     
-    inv = inverse_kernel_estimation(point, estimated_dist_controls, mesh)
-    numerator = evaluate_kernel_estimation(inv, estimated_density_cases, mesh)
+    inv         = inverse_kernel_estimation(point, estimated_dist_controls, mesh)
+    numerator   = evaluate_kernel_estimation(inv, estimated_density_cases,    mesh)
     denominator = evaluate_kernel_estimation(inv, estimated_density_controls, mesh)
     
     roc[i] = 1 - evaluate_kernel_estimation(inv, estimated_dist_cases, mesh)
-    roc_prime[i] = numerator / denominator
+    
+    # Denominator is the controls density at the quantile, which
+    # is legitimately near-zero in the tails. Dividing by zero yields NaN/Inf
+    # which then corrupts the entire eta integral (NaN #7).
+    # When the controls density is negligible the likelihood ratio is
+    # numerically unreliable; we clamp it to zero, which is the conservative
+    # choice (no evidence of discrimination in that region).
+    if (is.finite(denominator) && denominator > .Machine$double.eps) {
+      roc_prime[i] = numerator / denominator
+    } else {
+      roc_prime[i] = 0
+    }
   }
   
   # Return the eta values
