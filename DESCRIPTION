@@ -8,7 +8,7 @@ Description: Impementation of the summary statistic eta used for ROC curves usin
 License: use_mit_license()
 Encoding: UTF-8
 Imports:
-    pROC, ks
+    pROC, ks, mvtnorm
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 

@@ -324,4 +324,205 @@ calculate_youden_kernel = function(controls, cases, bandwidth_method, mesh_size_
   
 }
 
+#' Partial AUC under normality — exact closed form
+#'
+#' ROC curve: TPR(p) = Phi(a + b * Phi^{-1}(p)),  a = (mu_y-mu_x)/sigma_y,  b = sigma_x/sigma_y
+#' Closed form after substitution u = Phi^{-1}(p):
+#'   pAUC(t0) = Phi_2( Phi^{-1}(t0), a/sqrt(1+b^2); rho = -b/sqrt(1+b^2) )
+#'
+#' @param controls Numeric vector of controls (or pass moments directly via mu_x, sigma_x).
+#' @param cases    Numeric vector of cases.
+#' @param t0       Upper FPR limit in (0, 1] (default 1 -> full AUC).
+#' @return Exact partial AUC.
+#' @export
+calculate_pauc_normal = function(controls, cases, t0 = 1) {
+  mu_x    <- mean(controls);  sigma_x <- sd(controls)
+  mu_y    <- mean(cases);     sigma_y <- sd(cases)
 
+  a   <- (mu_y - mu_x) / sigma_y
+  b   <- sigma_x / sigma_y
+  rho <- -b / sqrt(1 + b^2)
+
+  mvtnorm::pmvnorm(
+    lower = c(-Inf, -Inf),
+    upper = c(qnorm(t0), a / sqrt(1 + b^2)),
+    mean  = c(0, 0),
+    sigma = matrix(c(1, rho, rho, 1), nrow = 2)
+  ) |> as.numeric()
+}
+
+
+#' Partial Youden index under normality — exact closed form
+#'
+#' The unrestricted optimum c* solves a quadratic (existing calculate_youden_normal).
+#' The partial optimum is max(c*, c_boundary) where c_boundary = qnorm(1-t0, mu_x, sigma_x).
+#' If c* >= c_boundary the restriction is not binding and both coincide.
+#' If c* <  c_boundary the Youden function is evaluated at c_boundary directly.
+#'
+#' @param controls Numeric vector of controls.
+#' @param cases    Numeric vector of cases.
+#' @param t0       Upper FPR limit in (0, 1] (default 1 -> full Youden).
+#' @return Partial Youden index value.
+#' @export
+calculate_pyouden_normal = function(controls, cases, t0 = 1) {
+  mu_x    <- mean(controls);  sigma_x <- sd(controls)
+  mu_y    <- mean(cases);     sigma_y <- sd(cases)
+
+  # Unrestricted optimal threshold (closed form from existing function)
+  c_star <- ((mu_y * sigma_x^2 - mu_x * sigma_y^2) -
+               sigma_x * sigma_y * sqrt(
+                 (mu_x - mu_y)^2 +
+                   (sigma_x^2 - sigma_y^2) * log(sigma_x^2 / sigma_y^2)
+               )) / (sigma_x^2 - sigma_y^2)
+
+  # Boundary threshold corresponding to FPR = t0
+  c_boundary <- qnorm(1 - t0, mean = mu_x, sd = sigma_x)
+
+  # Effective threshold: push to boundary if unrestricted optimum violates constraint
+  c_eff <- max(c_star, c_boundary)
+
+  # Youden at effective threshold
+  tpr <- 1 - pnorm(c_eff, mean = mu_y, sd = sigma_y)
+  fpr <- 1 - pnorm(c_eff, mean = mu_x, sd = sigma_x)
+
+  return(tpr - fpr)
+}
+
+#' Partial AUC using kernel density estimation
+#'
+#' Restricts the AUC integral to the region where FPR <= t0. The threshold
+#' c*(t0) is found via uniroot on the kernel CDF of controls, then only
+#' controls above that threshold contribute to the sum.
+#'
+#' With t0 = 1 the result equals calculate_auc_kernel().
+#'
+#' @param controls         Numeric vector of controls.
+#' @param cases            Numeric vector of cases.
+#' @param t0               Upper FPR limit in (0, 1] (default 1 -> full AUC).
+#' @param bandwidth_method One of 'optimal', 'hscv', 'iqr'.
+#' @param kernel_function  'gaussian' or 'epanechnikov'.
+#' @param box_cox          Logical; apply Box-Cox transformation.
+#' @return Partial AUC value.
+#' @export
+calculate_pauc_kernel = function(controls, cases, t0 = 1,
+                                  bandwidth_method = "optimal",
+                                  kernel_function  = "gaussian",
+                                  box_cox          = FALSE) {
+  if (box_cox) {
+    transformed = apply_box_cox(controls, cases)
+    controls    = transformed$transformed_x
+    cases       = transformed$transformed_y
+  }
+
+  n_controls = length(controls)
+  n_cases    = length(cases)
+
+  if (bandwidth_method == "optimal") {
+    bw_x = 1.06 * sd(controls) * n_controls^(-1/5)
+    bw_y = 1.06 * sd(cases)    * n_cases^(-1/5)
+  } else if (bandwidth_method == "hscv") {
+    bw_x = ks::hscv(controls)
+    bw_y = ks::hscv(cases)
+  } else if (bandwidth_method == "iqr") {
+    bw_x = 0.9 * min(sd(controls), IQR(controls) / 1.34) * n_controls^(-1/5)
+    bw_y = 0.9 * min(sd(cases),    IQR(cases)    / 1.34) * n_cases^(-1/5)
+  } else {
+    stop("Invalid bandwidth_method. Choose 'optimal', 'hscv', or 'iqr'.")
+  }
+
+  h_combined = sqrt(bw_x^2 + bw_y^2)
+
+  if (kernel_function == "gaussian") {
+    kernel_cdf = function(u) pnorm(u)
+  } else if (kernel_function == "epanechnikov") {
+    kernel_cdf = function(u) {
+      result = (-u^3 + 15 * u + 2 * 5^(3/2)) / (4 * 5^(3/2))
+      result * (abs(u) <= sqrt(5)) + 1 * (u > sqrt(5))
+    }
+  } else {
+    stop("Invalid kernel_function. Choose 'gaussian' or 'epanechnikov'.")
+  }
+
+  # Kernel CDF of controls at a given threshold
+  F_controls_hat = function(c_val) {
+    mean(kernel_cdf((c_val - controls) / bw_x))
+  }
+
+  # Find c*(t0) such that FPR_hat(c*) = t0, i.e. F_controls_hat(c*) = 1 - t0
+  if (t0 >= 1) {
+    c_upper = -Inf
+  } else {
+    lo      = min(controls) - 5 * bw_x
+    hi      = max(controls) + 5 * bw_x
+    c_upper = uniroot(function(c) F_controls_hat(c) - (1 - t0),
+                      lower = lo, upper = hi)$root
+  }
+
+  # Sum only over controls in the FPR <= t0 region (x >= c_upper)
+  pauc = 0
+  for (i in seq_len(n_controls)) {
+    if (is.finite(c_upper) && controls[i] < c_upper) next
+    for (j in seq_len(n_cases)) {
+      pauc = pauc + kernel_cdf((cases[j] - controls[i]) / h_combined)
+    }
+  }
+
+  pauc = pauc / (n_controls * n_cases)
+  return(pauc)
+}
+
+#' Partial Youden index using kernel density estimation
+#'
+#' Restricts the optimisation to mesh points where FPR <= t0.
+#'
+#' With t0 = 1 the result equals calculate_youden_kernel().
+#'
+#' @param controls         Numeric vector of controls.
+#' @param cases            Numeric vector of cases.
+#' @param t0               Upper FPR limit in (0, 1] (default 1 -> full Youden).
+#' @param bandwidth_method One of 'optimal', 'hscv', 'iqr'.
+#' @param mesh_size_kernel Number of mesh points (default 1000).
+#' @param box_cox          Logical; apply Box-Cox transformation.
+#' @return Partial Youden index value.
+#' @export
+calculate_pyouden_kernel = function(controls, cases, t0 = 1,
+                                     bandwidth_method  = "optimal",
+                                     mesh_size_kernel  = 1000,
+                                     box_cox           = FALSE) {
+  if (box_cox) {
+    transformed = apply_box_cox(controls, cases)
+    controls    = transformed$transformed_x
+    cases       = transformed$transformed_y
+  }
+
+  if (bandwidth_method == "optimal") {
+    bw_x = 1.06 * sd(controls) * length(controls)^(-1/5)
+    bw_y = 1.06 * sd(cases)    * length(cases)^(-1/5)
+  } else if (bandwidth_method == "hscv") {
+    bw_x = ks::hscv(controls)
+    bw_y = ks::hscv(cases)
+  } else if (bandwidth_method == "iqr") {
+    bw_x = 0.9 * min(sd(controls), IQR(controls) / 1.34) * length(controls)^(-1/5)
+    bw_y = 0.9 * min(sd(cases),    IQR(cases)    / 1.34) * length(cases)^(-1/5)
+  } else {
+    stop("Invalid bandwidth_method. Choose 'optimal', 'hscv', or 'iqr'.")
+  }
+
+  mesh = seq(min(c(controls, cases)),
+             max(c(controls, cases)),
+             length.out = mesh_size_kernel)
+
+  dist_controls = kernel_distribution_estimation(sort(controls), mesh, bw_x)
+  dist_cases    = kernel_distribution_estimation(sort(cases),    mesh, bw_y)
+
+  fpr_mesh  = 1 - dist_controls
+  tpr_mesh  = 1 - dist_cases
+  in_region = fpr_mesh <= t0
+
+  if (!any(in_region)) {
+    warning("No mesh points fall within FPR <= t0. Returning NA.")
+    return(NA_real_)
+  }
+
+  return(max(tpr_mesh[in_region] - fpr_mesh[in_region]))
+}
